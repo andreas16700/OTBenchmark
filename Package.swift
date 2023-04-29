@@ -25,7 +25,7 @@ let package = Package(
 		.executableTarget(name: "OTBenchmark", dependencies: [
 			"MockShopifyClient"
 			,"MockPowersoftClient"
-			,"OTModelSyncer"
+			,.product(name: "OTModelSyncer", package: "OTModelSyncer_pub")
 		]),
         .testTarget(
             name: "OTBenchmarkTests",
