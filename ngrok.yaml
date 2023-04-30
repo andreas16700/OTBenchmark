@@ -1,0 +1,9 @@
+tunnels:
+    first:
+        addr: 8081
+        proto: http
+    second:
+        addr: 8082
+        proto: http
+version: "2"
+region: eu

@@ -1,0 +1,10 @@
+
+FROM swift:latest
+
+WORKDIR /package
+COPY Package.swift .
+RUN swift package resolve
+COPY . .
+ENTRYPOINT ["/bin/sh"]
+#RUN swift build -c release
+#ENTRYPOINT [".build/release/otBench"]
