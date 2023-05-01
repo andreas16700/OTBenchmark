@@ -9,13 +9,35 @@ import Foundation
 import OTModelSyncer
 import ArgumentParser
 
+
+struct Workload{
+	var totalModelCount: Int
+	let xSeed: UInt64
+	let ySeed: UInt64
+}
+enum RunnerType: String, CaseIterable, ExpressibleByArgument{
+	case mono, serverless
+	
+	static var allValueStrings: [String] {allCases.map(\.rawValue)}
+	
+	static var defaultCompletionKind: CompletionKind = .list(allValueStrings)
+}
 @main
-struct Workload: AsyncParsableCommand{
+struct Benchmark: AsyncParsableCommand{
 //	public init(){
 //
 //	}
 	@Argument(help: "The number of models to generate on the PS Server. Each model contains multiple items (ranging from 1 to 25).")
 	var totalModelCount: Int
+	
+	@Option(name: .shortAndLong, help: "The increments to run the benchmark (if the multiple flag is specified)")
+	var increments: Int = 500
+	
+	@Option(name: .long, help: "The starting value of the model count to run the benchmark (if the multiple flag is specified)")
+	var minModelCount: Int = 100
+	
+	@Flag(name: .shortAndLong, help: "If true, will run the benchmark multiple times, for model count starting from \"minModelCount\" (minModelCount option) , with increments of \"increments\" (increments option) up to \"totalModelCount\" (the main argument)")
+	var multiple: Bool = false
 	
 	@Option(name: .shortAndLong, help: "A 64bit unsigned integer used as a seed for generating the workload")
 	var xSeed: UInt64 = 3199077918806463242
@@ -23,66 +45,88 @@ struct Workload: AsyncParsableCommand{
 	@Option(name: .shortAndLong, help: "A 64bit unsigned integer used as a seed for generating the workload")
 	var ySeed: UInt64 = 11403738689752549865
 	
-	public func run() async throws {
-		let workload = self
-		print("Will benchmark generating \(workload.totalModelCount) models using seed (\(workload.xSeed),\(workload.ySeed))")
-
-		let urlMaker = {URL(string: $0)}
-		let psURL = getEnvVar("PSURL", hint: "url of a powersoft server", transforming: urlMaker)
-		let shURL = getEnvVar("SHURL", hint: "url of a powersoft server", transforming: urlMaker)
-		enum RunnerType: String, CaseIterable{
-			case mono, serverless
+	@Argument(help: "URL of the PS (powersoft) Server", transform: urlTransformer)
+	var psURL: URL
+	
+	@Argument(help: "URL of the SH (shopify) Server", transform: urlTransformer)
+	var shURL: URL
+	
+//	@Option(name: .shortAndLong, parsing: ., help: <#T##ArgumentHelp?#>, completion: <#T##CompletionKind?#>)
+	
+	@Option(name: .shortAndLong, help: "The type of runners to use.", completion: .default)
+	var runnerTypes: [RunnerType]
+	
+	func parseRunners()->[WorkloadRunner]{
+		return runnerTypes.map{
+			switch $0{
+			case .mono:
+				return MonolithicRunner(psURL: psURL, shURL: shURL)
+			case .serverless:
+				fatalError("unimplemented!")
+			}
 		}
-		let type:RunnerType = getEnvVar("OTTYPE", hint: "options: \(RunnerType.allCases.map(\.rawValue).joined(separator: ", "))", transforming: {.init(rawValue: $0)})
-
-		let runner: WorkloadRunner
-
-		switch type{
-		case .mono:
-			runner = MonolithicRunner(using: workload, psURL: psURL, shURL: shURL)
-		case .serverless:
-			fatalError("unimplemented!")
-		}
-		print("Setting up the servers...")
-		await runner.setUpServers()
-		print("Running...")
-
+	}
+	func initializeCSV(name: String)->CSVWriter{
+		guard let writer = CSVWriter(name: name) else {fatalError("Error creating/opening file to write benchmark results to!")}
+		let names = runnerTypes.map(\.rawValue)
+		let headerValues = ["Models Count"]+names.map{"seconds(\($0))"}+names.map{"attoseconds(\($0))"}
+		print("Writing header",headerValues.joined(separator: ","))
+		writer.writeCSVLine(values: headerValues)
+		return writer
+	}
+	func addResults(writer: CSVWriter, modelsCount: Int, times: [Duration]){
+		let values = ["\(modelsCount)"] + times.map({"\($0.components.seconds)"}) + times.map({"\($0.components.attoseconds)"})
+		writer.writeCSVLine(values: values)
+	}
+	static func runOnce(workload: Workload, runner: WorkloadRunner)async throws -> (String, Duration){
+		let name = type(of: runner).name
+		print("Setting up servers for ",name)
+		await runner.setUpServers(for: workload)
+		
+		print("Running..")
 		let duration = try await SuspendingClock().measure {
-			try await runner.run()
+			try await runner.runSync()
 		}
-		print("\(type.rawValue) took \(duration)")
-
+		print("\(name) took \(duration)")
+		
+		print("Resetting servers' state..")
 		let _ = await runner.psClient.reset()
 		let _ = await runner.shClient.reset()
+		print("Reset both servers.")
+		
+		return (name, duration)
 	}
-	
-//	static func readFromCommandLine()-> Self{
-//		func failAndPrintUsage(_ withMessage: String)->Never{
-//			print("Usage:")
-//			print("./otBench numOfModels")
-//			print("./otBench numOfModels xSeed ySeed")
-//			print("Where numOfModels is the number of models to be generated"
-//			," and xSeed, ySeed unsigned 64bit numbers to use for the pseudo-random number generator (PRNG). "
-//			,"If no seeds are provided, the default will be used:"
-//			,"\n ./otBench \(defaultXseed) \(defaultYseed)")
-//			fatalError(withMessage)
-//		}
-//
-//		let defaultXseed:UInt64 = 3199077918806463242
-//		let defaultYseed:UInt64 = 11403738689752549865
-//		let argumentCount = CommandLine.arguments.count
-//		guard argumentCount > 1 else{failAndPrintUsage("No arguments given!")}
-//		let numOfModelsStr = CommandLine.arguments[1]
-//		guard let numOfModels = Int(numOfModelsStr) else {failAndPrintUsage("\(numOfModelsStr) is not a number!")}
-//		guard argumentCount == 2 || argumentCount == 4 else {failAndPrintUsage("Unexpected number of arguments given!")}
-//
-//		if argumentCount == 4{
-//			guard let xSeed = UInt64(CommandLine.arguments[2])
-//					, let ySeed = UInt64(CommandLine.arguments[3]) else{
-//				failAndPrintUsage("Seeds given are not numbers!")
-//			}
-//			return .init(totalModelCount: numOfModels, xSeed: xSeed, ySeed: ySeed)
-//		}
-//		return .init(totalModelCount: numOfModels, xSeed: defaultXseed, ySeed: defaultYseed)
-//	}
+	func runMultiple()async throws{
+		guard minModelCount < totalModelCount else{
+			fatalError("minModelCount must be less than totalModelCount! (\(minModelCount)<\(totalModelCount)")
+		}
+		guard increments>0 else {fatalError("Increments must be a positive integer! (not \(increments)")}
+		print("Will benchmark generating from \(minModelCount) models up to \(totalModelCount) in increments of \(increments), using seed (\(xSeed),\(ySeed))")
+		let g = stride(from: minModelCount, to: totalModelCount, by: increments)
+		var workload = Workload(totalModelCount: 0, xSeed: xSeed, ySeed: ySeed)
+		let runners = parseRunners()
+		var times: [Duration] = .init()
+		times.reserveCapacity(runners.count)
+		let resultsFileName = "bench_\(workload.totalModelCount)_\(runners.map{type(of: $0).name}.joined(separator: ","))_\(workload.xSeed)_\(workload.ySeed)"
+		let writer = initializeCSV(name: resultsFileName)
+		for modelsCount in g{
+			workload.totalModelCount = modelsCount
+			times.removeAll(keepingCapacity: true)
+			for runner in runners {
+				let (name, time) = try await Self.runOnce(workload: workload, runner: runner)
+				print(name,"took \(time)")
+				times.append(time)
+			}
+			addResults(writer: writer, modelsCount: modelsCount, times: times)
+		}
+	}
+	public func run() async throws {
+		guard !multiple else {try await runMultiple(); return}
+		print("Will benchmark generating \(totalModelCount) models using seed (\(xSeed),\(ySeed))")
+		let runners = parseRunners()
+		let wl = Workload(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed)
+		for runner in runners {
+			_ = try await Self.runOnce(workload: wl, runner: runner)
+		}
+	}
 }

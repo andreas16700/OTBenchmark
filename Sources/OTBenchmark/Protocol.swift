@@ -13,11 +13,11 @@ import MockShopifyClient
 import MockPowersoftClient
 
 protocol WorkloadRunner{
-	init(using: Workload, psURL: URL, shURL: URL)
-	var workload: Workload					{get}
+	init(psURL: URL, shURL: URL)
+	static var name: String					{get}
 	var psClient: MockPsClient				{get}
 	var shClient: MockShClient				{get}
-	func run()async throws
+	func runSync() async throws
 }
 
 struct SourceData{
@@ -34,13 +34,13 @@ func succeeds(_ failMessage: String, _ op: @autoclosure ()async->Bool?)async{
 	guard await unwrapOrFail(failMessage, await op()) else {fatalError(failMessage)}
 }
 extension WorkloadRunner{
-	func setUpServers()async{
-		var gen: RandomNumberGenerator = Xorshift128Plus(xSeed: self.workload.xSeed, ySeed: self.workload.ySeed)
+	func setUpServers(for workload: Workload)async{
+		var gen: RandomNumberGenerator = Xorshift128Plus(xSeed: workload.xSeed, ySeed: workload.ySeed)
 		let psClient = self.psClient
 		let shClient = self.shClient
-		let modelCount = self.workload.totalModelCount
+		let modelCount = workload.totalModelCount
 		
-		await succeeds("Could not intialize ps server!", await psClient.generateModels(modelCount: modelCount, xSeed: self.workload.xSeed, ySeed: self.workload.ySeed))
+		await succeeds("Could not intialize ps server!", await psClient.generateModels(modelCount: modelCount, xSeed: workload.xSeed, ySeed: workload.ySeed))
 		
 		let pNum = Int.random(in: 0...modelCount, using: &gen)
 		let fNum = Int.random(in: 0..<modelCount, using: &gen)

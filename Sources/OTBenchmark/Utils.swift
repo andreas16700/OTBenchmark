@@ -11,4 +11,10 @@ func getEnvVar<T>(_ name: String, hint: String, transforming: (String)->T?)->T{
 	}
 	return t
 }
+let urlTransformer: (String)->URL = {str in
+	guard let url = URL(string: str) else {
+		fatalError("\(str) is not a valid URL!")
+	}
+	return url
+}
 

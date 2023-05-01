@@ -14,13 +14,12 @@ import OTModelSyncer
 
 struct MonolithicRunner: WorkloadRunner{
 	
+	static let name: String = "Monolithic"
 	var psClient: MockPsClient
 	var shClient: MockShClient
-	var workload: Workload
-	init(using: Workload, psURL: URL, shURL: URL) {
+	init(psURL: URL, shURL: URL) {
 		self.psClient = MockPsClient(baseURL: psURL)
 		self.shClient = MockShClient(baseURL: shURL)
-		self.workload = using
 	}
 	func getSourceData()async->SourceData{
 		async let psItems = psClient.getAllItems(type: .eCommerceOnly)
@@ -44,7 +43,7 @@ struct MonolithicRunner: WorkloadRunner{
 		
 		return await .init(psModelsByModelCode: models, psStocksByModelCode: psStocksByModelCode, shProdsByHandle: prods, shStocksByInvID: shStockByInvID)
 	}
-	func run() async throws {
+	func runSync() async throws{
 		print("retrieving source data...")
 		let source = await getSourceData()
 		print("Starting syncers...")
