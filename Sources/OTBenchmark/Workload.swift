@@ -27,6 +27,8 @@ struct Benchmark: AsyncParsableCommand{
 //	public init(){
 //
 //	}
+	
+	
 	@Argument(help: "The number of models to generate on the PS Server. Each model contains multiple items (ranging from 1 to 25).")
 	var totalModelCount: Int
 	
@@ -39,6 +41,9 @@ struct Benchmark: AsyncParsableCommand{
 	@Flag(name: .shortAndLong, help: "If true, will run the benchmark multiple times, for model count starting from \"minModelCount\" (minModelCount option) , with increments of \"increments\" (increments option) up to \"totalModelCount\" (the main argument)")
 	var multiple: Bool = false
 	
+	@Flag(name: .shortAndLong, help: "Only setup the servers")
+	var onlySetupServers: Bool = false
+	
 	@Option(name: .shortAndLong, help: "A 64bit unsigned integer used as a seed for generating the workload")
 	var xSeed: UInt64 = 3199077918806463242
 	
@@ -50,11 +55,11 @@ struct Benchmark: AsyncParsableCommand{
 	
 	@Argument(help: "URL of the SH (shopify) Server", transform: urlTransformer)
 	var shURL: URL
-	
-//	@Option(name: .shortAndLong, parsing: ., help: <#T##ArgumentHelp?#>, completion: <#T##CompletionKind?#>)
-	
+		
 	@Option(name: .shortAndLong, help: "The type of runners to use.", completion: .default)
 	var runnerTypes: [RunnerType]
+	
+	
 	
 	func parseRunners()->[WorkloadRunner]{
 		return runnerTypes.map{
@@ -121,6 +126,13 @@ struct Benchmark: AsyncParsableCommand{
 		}
 	}
 	public func run() async throws {
+//		await getSource()
+//		await syncModel()
+		guard !onlySetupServers else{
+			let m = MonolithicRunner(psURL: psURL, shURL: shURL)
+			await m.setUpServers(for: .init(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed))
+			return
+		}
 		guard !multiple else {try await runMultiple(); return}
 		print("Will benchmark generating \(totalModelCount) models using seed (\(xSeed),\(ySeed))")
 		let runners = parseRunners()

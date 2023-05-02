@@ -38,6 +38,9 @@ extension WorkloadRunner{
 		var gen: RandomNumberGenerator = Xorshift128Plus(xSeed: workload.xSeed, ySeed: workload.ySeed)
 		let psClient = self.psClient
 		let shClient = self.shClient
+		print("Making sure both servers are reset first..")
+		let _ = await psClient.reset()
+		let _ = await shClient.reset()
 		let modelCount = workload.totalModelCount
 		
 		await succeeds("Could not intialize ps server!", await psClient.generateModels(modelCount: modelCount, xSeed: workload.xSeed, ySeed: workload.ySeed))
@@ -55,14 +58,22 @@ extension WorkloadRunner{
 			let product = SHProduct.partiallySynced(with: $0.model, stocksByItemCode: &stocks, using: &gen)
 			return ProductAndItsStocks(product: product, stocksBySKU: stocks)
 		}
-		print("Converting \(fNum) models into partially synced products")
+		print("Converting \(fNum) models into fully synced products")
 		let fModels = allModels[pNum...]
 		let fProducts = fModels.map{modelAndStocks in
 			let product = try! modelAndStocks.model.getAsNewProduct()
 			return ProductAndItsStocks(product: product, stocksBySKU: modelAndStocks.stocks)
 		}
+		
 		let pfProducts = pProducts + fProducts
 		print("Uploading \(pfProducts.count) products and their stocks to the SH server")
 		await succeeds("Failed creating \(pfProducts.count) new products!", await shClient.createNewProductsWithStocks(stuff: pfProducts))
-	}
+		printRandomModel(from: allModels[0..<pNum])
+		printRandomModel(from: allModels[0..<pNum])
+			}
+}
+func printRandomModel<T: Collection>(from: T) where T.Element == ModelAndItsStocks{
+	let randomPmodel = from.randomElement()!.model
+	print("model \(randomPmodel.randomElement()!.modelCode365) is partially synced (items \(randomPmodel.map(\.itemCode365).joined(separator: ",")))")
+
 }
