@@ -21,9 +21,9 @@ struct MonolithicRunner: WorkloadRunner{
 		self.psClient = MockPsClient(baseURL: psURL)
 		self.shClient = MockShClient(baseURL: shURL)
 	}
-	func runSync(sourceData source: SourceData) async throws{
+	func runSync(sourceData source: SourceData) async throws -> (Int,Int){
 		print("[I] Starting syncers... [M]")
-		await withTaskGroup(of: SingleModelSync?.self){group in
+		let g = await withTaskGroup(of: SingleModelSync?.self, returning: (Int, Int).self){group in
 			for (modelCode, model) in source.psModelsByModelCode{
 				let refItem = model.first!
 				let stocks = source.psStocksByModelCode[modelCode] ?? []
@@ -40,7 +40,17 @@ struct MonolithicRunner: WorkloadRunner{
 					return s
 				}
 			}
-			await group.waitForAll()
+			var fails = 0
+			var successes = 0
+			for await sync in group{
+				if sync == nil{
+					fails+=1
+				}else{
+					successes+=1
+				}
+			}
+			return (successes,fails)
 		}
+		return g
 	}
 }

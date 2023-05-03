@@ -17,7 +17,7 @@ protocol WorkloadRunner{
 	static var name: String					{get}
 	var psClient: MockPsClient				{get}
 	var shClient: MockShClient				{get}
-	func runSync(sourceData: SourceData) async throws
+	func runSync(sourceData: SourceData) async throws -> (Int,Int)
 }
 
 struct SourceData{

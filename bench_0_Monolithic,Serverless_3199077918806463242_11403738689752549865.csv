@@ -8,3 +8,4 @@ Models Count,seconds(mono),seconds(serverless),attoseconds(mono),attoseconds(ser
 1000,107,58,419555916000000000,970280666000000000
 Models Count,seconds(mono),seconds(serverless),attoseconds(mono),attoseconds(serverless)
 Models Count,seconds(mono),seconds(serverless),attoseconds(mono),attoseconds(serverless)
+1000,119,77,904312167000000000,779062416000000000

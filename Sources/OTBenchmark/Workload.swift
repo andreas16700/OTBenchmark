@@ -74,33 +74,34 @@ struct Benchmark: AsyncParsableCommand{
 	func initializeCSV(name: String)->CSVWriter{
 		guard let writer = CSVWriter(name: name) else {fatalError("Error creating/opening file to write benchmark results to!")}
 		let names = runnerTypes.map(\.rawValue)
-		let headerValues = ["Models Count"]+names.map{"seconds(\($0))"}+names.map{"attoseconds(\($0))"}
+		let headerValues = ["Models Count"] + names.map{"seconds(\($0))"} + names.map{"attoseconds(\($0))"} + names.map{"successes(\($0))"} + names.map{"fails(\($0))"}
 		print("Writing header",headerValues.joined(separator: ","))
 		writer.writeCSVLine(values: headerValues)
 		return writer
 	}
-	func addResults(writer: CSVWriter, modelsCount: Int, times: [Duration]){
-		let values = ["\(modelsCount)"] + times.map({"\($0.components.seconds)"}) + times.map({"\($0.components.attoseconds)"})
+	func addResults(writer: CSVWriter, modelsCount: Int, times: [Duration], succ: [Int], fail: [Int]){
+		let values = ["\(modelsCount)"] + times.map({"\($0.components.seconds)"}) + times.map({"\($0.components.attoseconds)"}) + succ.map{String($0)} + fail.map{String($0)}
 		writer.writeCSVLine(values: values)
 	}
-	static func runOnce(workload: Workload, runner: WorkloadRunner)async throws -> (String, Duration){
+	static func runOnce(workload: Workload, runner: WorkloadRunner)async throws -> (String, Duration, Int, Int){
 		let name = type(of: runner).name
 		print("Setting up servers for ",name)
 		await runner.setUpServers(for: workload)
 		print("Retrieving source data...")
 		let source = await runner.getSourceData()
 		print("Running..")
+		var (successes, fails) = (0,0)
 		let duration = try await SuspendingClock().measure {
-			try await runner.runSync(sourceData: source)
+			(successes, fails) = try await runner.runSync(sourceData: source)
 		}
-		print("\(name) took \(duration)")
+		print("\(name) took \(duration). Had \(fails) fails and \(successes) successes.")
 		
 		print("Resetting servers' state..")
 		let _ = await runner.psClient.reset()
 		let _ = await runner.shClient.reset()
 		print("Reset both servers.")
 		
-		return (name, duration)
+		return (name, duration, successes, fails)
 	}
 	func runMultiple()async throws{
 		guard minModelCount < totalModelCount else{
@@ -112,18 +113,26 @@ struct Benchmark: AsyncParsableCommand{
 		var workload = Workload(totalModelCount: 0, xSeed: xSeed, ySeed: ySeed)
 		let runners = parseRunners()
 		var times: [Duration] = .init()
+		var successes: [Int] = .init()
+		var fails: [Int] = .init()
 		times.reserveCapacity(runners.count)
+		successes.reserveCapacity(runners.count)
+		fails.reserveCapacity(runners.count)
 		let resultsFileName = "bench_\(workload.totalModelCount)_\(runners.map{type(of: $0).name}.joined(separator: ","))_\(workload.xSeed)_\(workload.ySeed)"
 		let writer = initializeCSV(name: resultsFileName)
 		for modelsCount in g{
 			workload.totalModelCount = modelsCount
 			times.removeAll(keepingCapacity: true)
+			successes.removeAll(keepingCapacity: true)
+			fails.removeAll(keepingCapacity: true)
 			for runner in runners {
-				let (name, time) = try await Self.runOnce(workload: workload, runner: runner)
+				let (name, time, succ, fail) = try await Self.runOnce(workload: workload, runner: runner)
 				print(name,"took \(time)")
 				times.append(time)
+				successes.append(succ)
+				fails.append(fail)
 			}
-			addResults(writer: writer, modelsCount: modelsCount, times: times)
+			addResults(writer: writer, modelsCount: modelsCount, times: times, succ: successes, fail: fails)
 		}
 	}
 	public func run() async throws {
