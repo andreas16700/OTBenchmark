@@ -21,32 +21,8 @@ struct MonolithicRunner: WorkloadRunner{
 		self.psClient = MockPsClient(baseURL: psURL)
 		self.shClient = MockShClient(baseURL: shURL)
 	}
-	func getSourceData()async->SourceData{
-		async let psItems = psClient.getAllItems(type: .eCommerceOnly)
-		async let shProds = shClient.getAllProducts()
-		async let psStocks = psClient.getAllStocks(type: .eCommerceOnly)
-		async let shStocks = shClient.getAllInventories()
-		guard
-		let psItems = await psItems,
-		let psStocks = await psStocks,
-		let shProds = await shProds,
-		let shStocks = await shStocks
-		else{
-			fatalError("[ERROR] failed to fetch source data!")
-		}
-		print("converting to dictionaries...")
-		let models = Dictionary(grouping: psItems, by: {($0.modelCode365 == "") ? $0.getShHandle() : $0.modelCode365})
-		
-		async let prods = shProds.toDictionary(usingKP: \.handle)
-		async let shStockByInvID = shStocks.toDictionary(usingKP: \.inventoryItemID)
-		async let psStocksByModelCode = psStocks.toDictionaryArray(usingKP: \.modelCode365)
-		
-		return await .init(psModelsByModelCode: models, psStocksByModelCode: psStocksByModelCode, shProdsByHandle: prods, shStocksByInvID: shStockByInvID)
-	}
-	func runSync() async throws{
-		print("retrieving source data...")
-		let source = await getSourceData()
-		print("Starting syncers...")
+	func runSync(sourceData source: SourceData) async throws{
+		print("[I] Starting syncers... [M]")
 		await withTaskGroup(of: SingleModelSync?.self){group in
 			for (modelCode, model) in source.psModelsByModelCode{
 				let refItem = model.first!
@@ -57,7 +33,11 @@ struct MonolithicRunner: WorkloadRunner{
 				let shData = product == nil ? nil : (product!,shStocks!)
 				let syncer = SingleModelSyncer(modelCode: modelCode, ps: psClient, sh: shClient, psDataToUse: (model,stocks), shDataToUse: shData, saveMethod: nil)
 				group.addTask{
-					return await syncer.sync(savePeriodically: false)
+					let s = await syncer.sync(savePeriodically: false)
+					if s == nil{
+						print("[I] Failed for \(modelCode) [M]")
+					}
+					return s
 				}
 			}
 			await group.waitForAll()

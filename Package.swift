@@ -18,7 +18,11 @@ let package = Package(
 		.package(url: "https://github.com/andreas16700/MockShopifyClient", branch: "main"),
 		.package(url: "https://github.com/andreas16700/MockPowersoftClient", branch: "main"),
 		.package(url: "https://github.com/andreas16700/OTModelSyncer_pub", branch: "main"),
-		.package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.2")
+		.package(url: "https://github.com/apple/swift-argument-parser", from: "1.2.2"),
+		.package(url: "https://github.com/apple/swift-nio.git", from: "2.51.1"),
+		.package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.24.0"),
+		.package(url: "https://github.com/apple/swift-nio-http2.git", from: "1.26.0"),
+		.package(url: "https://github.com/swift-server/async-http-client.git", from: "1.17.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -27,7 +31,11 @@ let package = Package(
 			"MockShopifyClient"
 			,"MockPowersoftClient"
 			,.product(name: "OTModelSyncer", package: "OTModelSyncer_pub")
-			,.product(name: "ArgumentParser", package: "swift-argument-parser")
+			,.product(name: "ArgumentParser", package: "swift-argument-parser"),
+				.product(name: "NIO", package: "swift-nio"),
+				.product(name: "NIOSSL", package: "swift-nio-ssl"),
+				.product(name: "NIOHTTP2", package: "swift-nio-http2"),
+				.product(name: "AsyncHTTPClient", package: "async-http-client")
 		]),
         .testTarget(
             name: "OTBenchmarkTests",

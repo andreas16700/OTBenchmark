@@ -17,7 +17,7 @@ protocol WorkloadRunner{
 	static var name: String					{get}
 	var psClient: MockPsClient				{get}
 	var shClient: MockShClient				{get}
-	func runSync() async throws
+	func runSync(sourceData: SourceData) async throws
 }
 
 struct SourceData{
@@ -34,6 +34,28 @@ func succeeds(_ failMessage: String, _ op: @autoclosure ()async->Bool?)async{
 	guard await unwrapOrFail(failMessage, await op()) else {fatalError(failMessage)}
 }
 extension WorkloadRunner{
+	func getSourceData()async->SourceData{
+		async let psItems = psClient.getAllItems(type: .eCommerceOnly)
+		async let shProds = shClient.getAllProducts()
+		async let psStocks = psClient.getAllStocks(type: .eCommerceOnly)
+		async let shStocks = shClient.getAllInventories()
+		guard
+		let psItems = await psItems,
+		let psStocks = await psStocks,
+		let shProds = await shProds,
+		let shStocks = await shStocks
+		else{
+			fatalError("[ERROR] failed to fetch source data!")
+		}
+		print("converting to dictionaries...")
+		let models = Dictionary(grouping: psItems, by: {($0.modelCode365 == "") ? $0.getShHandle() : $0.modelCode365})
+		
+		async let prods = shProds.toDictionary(usingKP: \.handle)
+		async let shStockByInvID = shStocks.toDictionary(usingKP: \.inventoryItemID)
+		async let psStocksByModelCode = psStocks.toDictionaryArray(usingKP: \.modelCode365)
+		
+		return await .init(psModelsByModelCode: models, psStocksByModelCode: psStocksByModelCode, shProdsByHandle: prods, shStocksByInvID: shStockByInvID)
+	}
 	func setUpServers(for workload: Workload)async{
 		var gen: RandomNumberGenerator = Xorshift128Plus(xSeed: workload.xSeed, ySeed: workload.ySeed)
 		let psClient = self.psClient
@@ -75,5 +97,4 @@ extension WorkloadRunner{
 func printRandomModel<T: Collection>(from: T) where T.Element == ModelAndItsStocks{
 	let randomPmodel = from.randomElement()!.model
 	print("model \(randomPmodel.randomElement()!.modelCode365) is partially synced (items \(randomPmodel.map(\.itemCode365).joined(separator: ",")))")
-
 }

@@ -57,7 +57,7 @@ struct Benchmark: AsyncParsableCommand{
 	var shURL: URL
 		
 	@Option(name: .shortAndLong, help: "The type of runners to use.", completion: .default)
-	var runnerTypes: [RunnerType]
+	var runnerTypes: [RunnerType] = [.mono, .serverless]
 	
 	
 	
@@ -67,7 +67,7 @@ struct Benchmark: AsyncParsableCommand{
 			case .mono:
 				return MonolithicRunner(psURL: psURL, shURL: shURL)
 			case .serverless:
-				fatalError("unimplemented!")
+				return ServerlessRunner(psURL: psURL, shURL: shURL)
 			}
 		}
 	}
@@ -87,10 +87,11 @@ struct Benchmark: AsyncParsableCommand{
 		let name = type(of: runner).name
 		print("Setting up servers for ",name)
 		await runner.setUpServers(for: workload)
-		
+		print("Retrieving source data...")
+		let source = await runner.getSourceData()
 		print("Running..")
 		let duration = try await SuspendingClock().measure {
-			try await runner.runSync()
+			try await runner.runSync(sourceData: source)
 		}
 		print("\(name) took \(duration)")
 		
@@ -126,8 +127,30 @@ struct Benchmark: AsyncParsableCommand{
 		}
 	}
 	public func run() async throws {
-//		await getSource()
-//		await syncModel()
+
+//		let o = MonolithicRunner(psURL: psURL, shURL: shURL)
+//		let modelCode = "model149"
+//		let source = await o.getSourceData()
+//		let model = source.psModelsByModelCode[modelCode]!
+//		let psStock = source.psStocksByModelCode[modelCode]!
+//		let shProd = source.shProdsByHandle[model.randomElement()!.getShHandle()]!
+//		let invIDs = shProd.variants.map(\.inventoryItemID).compactMap{$0!}
+//		let shStock = invIDs.map{source.shStocksByInvID[$0]!}
+//		let input = SyncModelInput(clientsInfo: .init(psURL: psURL, shURL: shURL), modelCode: modelCode, model: model, psStocks: psStock, product: shProd, shInv: shStock)
+//		let response = await syncModel(input: input)
+//		guard let sync = response.1 else{
+//			for (k,v) in response.0{
+//				print(k,"\(v)")
+//			}
+//			return
+//		}
+//		print(sync.metadata)
+//		print("Done")
+		
+//		let inp = SyncModelInput(clientsInfo: .init(psURL: psURL, shURL: shURL), modelCode: "model8", model: nil, psStocks: nil, product: nil, shInv: nil)
+//		print(String(data: (try! JSONEncoder().encode(inp)), encoding: .utf8)!)
+		
+		
 		guard !onlySetupServers else{
 			let m = MonolithicRunner(psURL: psURL, shURL: shURL)
 			await m.setUpServers(for: .init(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed))
