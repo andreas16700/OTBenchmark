@@ -160,17 +160,17 @@ struct Benchmark: AsyncParsableCommand{
 //		print(String(data: (try! JSONEncoder().encode(inp)), encoding: .utf8)!)
 		
 		
-//		guard !onlySetupServers else{
+		guard !onlySetupServers else{
 			let m = MonolithicRunner(psURL: psURL, shURL: shURL)
 			await m.setUpServers(for: .init(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed))
 			return
-//		}
-//		guard !multiple else {try await runMultiple(); return}
-//		print("Will benchmark generating \(totalModelCount) models using seed (\(xSeed),\(ySeed))")
-//		let runners = parseRunners()
-//		let wl = Workload(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed)
-//		for runner in runners {
-//			_ = try await Self.runOnce(workload: wl, runner: runner)
-//		}
+		}
+		guard !multiple else {try await runMultiple(); return}
+		print("Will benchmark generating \(totalModelCount) models using seed (\(xSeed),\(ySeed))")
+		let runners = parseRunners()
+		let wl = Workload(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed)
+		for runner in runners {
+			_ = try await Self.runOnce(workload: wl, runner: runner)
+		}
 	}
 }
