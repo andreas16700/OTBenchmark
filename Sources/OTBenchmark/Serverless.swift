@@ -34,15 +34,17 @@ struct SyncModelInput: Codable{
 	let product: SHProduct?
 	let shInv: [InventoryLevel]?
 }
-func syncModel(input: SyncModelInput)async -> ( [String: Any], SingleModelSync?){
+func syncModel(input: SyncModelInput)async -> ( [String: Any], [String: Any]?){
 	let name = "syncModel"
 	let param = input
 //	let s = await Whisk.invoke(actionNamed: name, withParameters: param, blocking: true)
 //	for (k,v) in s{
 //		print(k,"\(v)")
 //	}
-	let r = await Whisk.invoke(actionNamed: name, withParameters: param, expect: SingleModelSync.self)
-	return r
+	let r = await Whisk.invoke(actionNamed: name, withParameters: param)
+	let g = Whisk.wasSuccessful(o: r)
+	let success = g["error"] == nil
+	return (r, success ? g : nil)
 }
 
 struct ServerlessRunner: WorkloadRunner{
@@ -62,7 +64,7 @@ struct ServerlessRunner: WorkloadRunner{
 	func runSync(sourceData source: SourceData) async throws -> (Int, Int){
 		print("[I] Starting syncers... [S]")
 		let clientsInfo: ClientsInfo = .init(psURL: psURL, shURL: shURL)
-		return await withTaskGroup(of: SingleModelSync?.self, returning: (Int, Int).self){group in
+		return await withTaskGroup(of: [String: Any]?.self, returning: (Int, Int).self){group in
 			for (modelCode, model) in source.psModelsByModelCode{
 				let refItem = model.first!
 				let stocks = source.psStocksByModelCode[modelCode] ?? []

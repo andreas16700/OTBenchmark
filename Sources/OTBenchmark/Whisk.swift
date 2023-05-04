@@ -95,6 +95,16 @@ class Whisk {
 	// This will allow user to modify the default JSONDecoder and JSONEncoder used by epilogue
 	static var jsonDecoder = JSONDecoder()
 	static var jsonEncoder = JSONEncoder()
+	class func wasSuccessful(o: [String: Any])->[String: Any]{
+		guard let r = o["response"] as? [String: Any] else {
+			return ["error":"no response! Got: \(o)"]
+		}
+		
+		guard let result = r["result"] as? [String: Any] else{
+			return ["error":"no result! Got: \(o)"]
+		}
+		return result
+	}
 	class func invoke<T: Codable, T2: Codable>(actionNamed action : String, withParameters params : T?, blocking: Bool = true, expect: T2.Type) async -> ([String:Any], T2?){
 		let o = await invoke(actionNamed: action, withParameters: params, blocking: blocking)
 		guard let r = o["response"] as? [String: Any] else {
