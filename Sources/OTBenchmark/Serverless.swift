@@ -49,21 +49,21 @@ struct SyncModelResult{
 	let succ: [String: Any]?
 	let nanos: UInt64
 	
-	func save()throws{
-		let fm = FileManager.default
-		let resultDesc = succ == nil ? "_fail" : "_succ"
-		let baseFileName = input.modelCode + resultDesc
-		let basePath = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent(baseFileName)
-		try fm.createDirectory(at: basePath, withIntermediateDirectories: true)
-		let inpURL = basePath.appending(path: "input.json")
-		try input.write(fileURL: inpURL)
-		let dicURL = basePath.appending(path: "dicOutput.json")
-		try JSONSerialization.writeObject(object: dictOutput, to: dicURL)
-		if let succ{
-			let succURL = basePath.appending(path: "success.json")
-			try JSONSerialization.writeObject(object: succ, to: succURL)
-		}
-	}
+//	func save()throws{
+//		let fm = FileManager.default
+//		let resultDesc = succ == nil ? "_fail" : "_succ"
+//		let baseFileName = input.modelCode + resultDesc
+//		let basePath = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent(baseFileName)
+//		try fm.createDirectory(at: basePath, withIntermediateDirectories: true)
+//		let inpURL = basePath.appending(path: "input.json")
+//		try input.write(fileURL: inpURL)
+//		let dicURL = basePath.appending(path: "dicOutput.json")
+//		try JSONSerialization.writeObject(object: dictOutput, to: dicURL)
+//		if let succ{
+//			let succURL = basePath.appending(path: "success.json")
+//			try JSONSerialization.writeObject(object: succ, to: succURL)
+//		}
+//	}
 }
 func measureInNanos<T>(_ work: ()async throws->T)async rethrows -> (UInt64, T){
 	let s: DispatchTime
