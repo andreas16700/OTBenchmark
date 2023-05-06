@@ -6,6 +6,20 @@
 //
 
 import Foundation
+let encoder = JSONEncoder()
+extension Encodable{
+	func write(fileURL: URL)throws{
+		assert(type(of: self) != Data.self)
+		let data = try encoder.encode(self)
+		
+		let strPath = fileURL.path()
+		guard FileManager.default.fileExists(atPath: strPath) else {
+			FileManager.default.createFile(atPath: strPath, contents: data)
+			return
+		}
+		try data.write(to: fileURL)
+	}
+}
 class CSVWriter{
 	init?(name: String) {
 		self.filename = "\(name).csv"

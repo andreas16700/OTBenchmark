@@ -12,12 +12,18 @@ import OTModelSyncer
 import MockShopifyClient
 import MockPowersoftClient
 
+struct SyncResults{
+	let successes: Int
+	let fails: Int
+	let latencies: [Double]
+}
+
 protocol WorkloadRunner{
-	init(psURL: URL, shURL: URL)
+	init(psURL: URL, shURL: URL, msDelay: Int)
 	static var name: String					{get}
 	var psClient: MockPsClient				{get}
 	var shClient: MockShClient				{get}
-	func runSync(sourceData: SourceData) async throws -> (Int,Int)
+	func runSync(sourceData: SourceData) async throws -> (Int,Int,[UInt64])
 }
 
 struct SourceData{

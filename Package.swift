@@ -22,7 +22,8 @@ let package = Package(
 		.package(url: "https://github.com/apple/swift-nio.git", from: "2.51.1"),
 		.package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.24.0"),
 		.package(url: "https://github.com/apple/swift-nio-http2.git", from: "1.26.0"),
-		.package(url: "https://github.com/swift-server/async-http-client.git", from: "1.17.0")
+		.package(url: "https://github.com/swift-server/async-http-client.git", from: "1.17.0"),
+		.package(url: "https://github.com/andreas16700/RateLimitingCommunicator", branch: "main")
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -35,7 +36,8 @@ let package = Package(
 				.product(name: "NIO", package: "swift-nio"),
 				.product(name: "NIOSSL", package: "swift-nio-ssl"),
 				.product(name: "NIOHTTP2", package: "swift-nio-http2"),
-				.product(name: "AsyncHTTPClient", package: "async-http-client")
+				.product(name: "AsyncHTTPClient", package: "async-http-client"),
+			.product(name: "RateLimitingCommunicator", package: "RateLimitingCommunicator")
 		]),
         .testTarget(
             name: "OTBenchmarkTests",
