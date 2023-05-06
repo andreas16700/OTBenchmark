@@ -62,6 +62,8 @@ struct Benchmark: AsyncParsableCommand{
 	@Option(name: .short, help: "The min delay two subsequent requests (for model sync) should have, in milliseconds")
 	var delay: Int = 15
 	
+	@Flag(name: .short, help: "Only test that writing to a csv file works.")
+	var writeOnlyTestCSV = false
 	
 	
 	func parseRunners()->[WorkloadRunner]{
@@ -171,7 +173,10 @@ struct Benchmark: AsyncParsableCommand{
 //		let inp = SyncModelInput(clientsInfo: .init(psURL: psURL, shURL: shURL), modelCode: "model8", model: nil, psStocks: nil, product: nil, shInv: nil)
 //		print(String(data: (try! JSONEncoder().encode(inp)), encoding: .utf8)!)
 
-		
+		guard !writeOnlyTestCSV else {
+			CSVWriter.test()
+			return
+		}
 		guard !onlySetupServers else{
 			let m = MonolithicRunner(psURL: psURL, shURL: shURL, msDelay: delay)
 			await m.setUpServers(for: .init(totalModelCount: totalModelCount, xSeed: xSeed, ySeed: ySeed))

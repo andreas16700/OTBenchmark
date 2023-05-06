@@ -58,4 +58,18 @@ class CSVWriter{
 			print("Error writing to \(filename): \(error.localizedDescription)")
 		}
 	}
+	static func test(){
+		let writerOpt = CSVWriter.init(name: "test_file")
+		assert(writerOpt != nil)
+		let writer = writerOpt!
+		writer.writeCSVLine(values: ["Test","Header"])
+		let arr = Array(0..<50)
+		let dbl = arr.map {_ in "\(Double.random(in: 115...221000))"}
+		let max: UInt64 = .max
+		let min: UInt64 = .min
+		let uint = arr.map {_ in "\(UInt64.random(in: min...max))"}
+		for i in 0..<arr.count{
+			writer.writeCSVLine(values: [dbl[i], uint[i]])
+		}
+	}
 }
