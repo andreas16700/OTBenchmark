@@ -1,5 +1,11 @@
 # Xcode
-#
+# custom i added for the benchmarker
+install_swift.py
+swift-5.8-RELEASE-ubuntu18.04.tar.gz
+swift-5.8-RELEASE-ubuntu18.04
+bench_0_Monolithic,Serverless_3199077918806463242_11403738689752549865.csv
+bench_0_Serverless_3199077918806463242_11403738689752549865.csv
+
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 .DS_Store
 .swiftpm
