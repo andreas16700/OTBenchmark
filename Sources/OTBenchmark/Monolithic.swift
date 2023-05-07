@@ -24,6 +24,8 @@ struct MonolithicRunner: WorkloadRunner{
 		self.shClient = MockShClient(baseURL: shURL)
 		if let msDelay{
 			self.rl = RLCommunicator(minDelay: .milliseconds(msDelay))
+		}else{
+			self.rl = nil
 		}
 		
 	}

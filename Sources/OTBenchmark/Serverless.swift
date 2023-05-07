@@ -100,6 +100,8 @@ struct ServerlessRunner: WorkloadRunner{
 		self.shURL=shURL
 		if let msDelay{
 			self.rl = .init(minDelay: .milliseconds(msDelay))
+		}else{
+			self.rl = nil
 		}
 	}
 	
