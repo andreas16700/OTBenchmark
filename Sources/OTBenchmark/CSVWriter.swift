@@ -56,6 +56,8 @@ class CSVWriter{
 			print("Successfully wrote to file")
 		} catch {
 			print("Error writing to \(filename): \(error.localizedDescription)")
+			print("Exiting..")
+			exit(-5)
 		}
 	}
 	static func test(){
