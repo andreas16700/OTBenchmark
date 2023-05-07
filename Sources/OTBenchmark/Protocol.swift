@@ -19,7 +19,7 @@ struct SyncResults{
 }
 
 protocol WorkloadRunner{
-	init(psURL: URL, shURL: URL, msDelay: Int)
+	init(psURL: URL, shURL: URL, msDelay: Int?)
 	static var name: String					{get}
 	var psClient: MockPsClient				{get}
 	var shClient: MockShClient				{get}

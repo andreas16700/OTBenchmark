@@ -18,11 +18,14 @@ struct MonolithicRunner: WorkloadRunner{
 	static let name: String = "Monolithic"
 	var psClient: MockPsClient
 	var shClient: MockShClient
-	let rl: RLCommunicator
-	init(psURL: URL, shURL: URL, msDelay: Int) {
+	let rl: RLCommunicator?
+	init(psURL: URL, shURL: URL, msDelay: Int?) {
 		self.psClient = MockPsClient(baseURL: psURL)
 		self.shClient = MockShClient(baseURL: shURL)
-		self.rl = RLCommunicator(minDelay: .milliseconds(msDelay))
+		if let msDelay{
+			self.rl = RLCommunicator(minDelay: .milliseconds(msDelay))
+		}
+		
 	}
 	func runSync(sourceData source: SourceData) async throws -> (Int,Int,[UInt64]){
 		print("[I] Starting syncers... [M]")
@@ -36,7 +39,18 @@ struct MonolithicRunner: WorkloadRunner{
 				let shData = product == nil ? nil : (product!,shStocks!)
 				let syncer = SingleModelSyncer(modelCode: modelCode, ps: psClient, sh: shClient, psDataToUse: (model,stocks), shDataToUse: shData, saveMethod: nil)
 				group.addTask{
-					let result = try! await rl.sendRequest{
+					if let rl{
+						let result = try! await rl.sendRequest{
+							let (nanos, s) = await measureInNanos{
+								await syncer.sync(savePeriodically: false)
+							}
+							if s == nil{
+								print("[I] Failed for \(modelCode) [M]")
+							}
+							return (s,nanos)
+						}
+						return result
+					}else{
 						let (nanos, s) = await measureInNanos{
 							await syncer.sync(savePeriodically: false)
 						}
@@ -45,7 +59,7 @@ struct MonolithicRunner: WorkloadRunner{
 						}
 						return (s,nanos)
 					}
-					return result
+					
 				}
 			}
 			var fails = 0

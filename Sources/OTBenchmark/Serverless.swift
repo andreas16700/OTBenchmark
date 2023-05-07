@@ -93,12 +93,14 @@ func syncModel(input: SyncModelInput)async -> SyncModelResult{
 
 struct ServerlessRunner: WorkloadRunner{
 	
-	init(psURL: URL, shURL: URL, msDelay: Int) {
+	init(psURL: URL, shURL: URL, msDelay: Int?) {
 		psClient = .init(baseURL: psURL)
 		shClient = .init(baseURL: shURL)
 		self.psURL=psURL
 		self.shURL=shURL
-		self.rl = .init(minDelay: .milliseconds(msDelay))
+		if let msDelay{
+			self.rl = .init(minDelay: .milliseconds(msDelay))
+		}
 	}
 	
 	static var name: String = "Serverless"
@@ -106,7 +108,7 @@ struct ServerlessRunner: WorkloadRunner{
 	var psClient: MockPowersoftClient.MockPsClient
 	let shURL: URL
 	var shClient: MockShopifyClient.MockShClient
-	let rl: RLCommunicator
+	let rl: RLCommunicator?
 	func runSync(sourceData source: SourceData) async throws -> (Int, Int, [UInt64]){
 		print("[I] Starting syncers... [S]")
 		let clientsInfo: ClientsInfo = .init(psURL: psURL, shURL: shURL)
@@ -119,8 +121,23 @@ struct ServerlessRunner: WorkloadRunner{
 				let shStocks = product?.appropriateStocks(from: source.shStocksByInvID)
 				let input = SyncModelInput(clientsInfo: clientsInfo, modelCode: modelCode, model: model, psStocks: stocks, product: product, shInv: shStocks)
 				group.addTask{
-					
-					let result = try! await rl.sendRequest{
+					if let rl{
+						let result = try! await rl.sendRequest{
+							let (duration, s) = await measureInNanos{
+								await syncModel(input: input)
+							}
+							
+							if s.succ == nil{
+								print("[I] Failed for \(modelCode) [S]")
+								print(s.dictOutput)
+							}
+	//						saveQ.async {
+	//							try! s.save()
+	//						}
+							return (s.succ, duration)
+						}
+						return result
+					}else{
 						let (duration, s) = await measureInNanos{
 							await syncModel(input: input)
 						}
@@ -134,7 +151,7 @@ struct ServerlessRunner: WorkloadRunner{
 //						}
 						return (s.succ, duration)
 					}
-					return result
+					
 				}
 			}
 			

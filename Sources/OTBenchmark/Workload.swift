@@ -65,14 +65,19 @@ struct Benchmark: AsyncParsableCommand{
 	@Flag(name: .short, help: "Only test that writing to a csv file works.")
 	var writeOnlyTestCSV = false
 	
+	@Flag(help: "Fetch source data for the syncs. By defaut, the source data is fetched, and for each model, the souce data is passed to the sync function. Source data is the data for a model that's currently available on the servers.")
+	var fetchSourceData = true
+	
+	@Flag(help: "No delay. Send sync requests immediately")
+	var noDelay: Bool = false
 	
 	func parseRunners()->[WorkloadRunner]{
 		return runnerTypes.map{
 			switch $0{
 			case .mono:
-				return MonolithicRunner(psURL: psURL, shURL: shURL, msDelay: delay)
+				return MonolithicRunner(psURL: psURL, shURL: shURL, msDelay: noDelay ? nil : delay)
 			case .serverless:
-				return ServerlessRunner(psURL: psURL, shURL: shURL, msDelay: delay)
+				return ServerlessRunner(psURL: psURL, shURL: shURL, msDelay: noDelay ? nil : delay)
 			}
 		}
 	}
