@@ -1,6 +1,6 @@
 //
 //  File.swift
-//  
+//
 //
 //  Created by Andreas Loizides on 06/05/2023.
 //
@@ -11,8 +11,9 @@ struct Stats {
 	let median: UInt64
 	let average: Double
 	let stdDev: Double
-	let min: UInt64
-	let max: UInt64
+	let p95: UInt64
+	let p99: UInt64
+	let p99_9: UInt64
 	
 	init?(from array: [UInt64]) {
 		guard !array.isEmpty else { return nil }
@@ -35,11 +36,18 @@ struct Stats {
 		let variance = Double(sortedArray.map { pow(Double($0) - mean, 2) }.reduce(0, +)) / Double(sortedArray.count)
 		stdDev = sqrt(variance)
 		
-		// Calculate Min and Max
-		min = sortedArray.first!
-		max = sortedArray.last!
+		// Calculate Percentiles
+		p95 = Self.percentile(sortedArray, percentile: 0.95)
+		p99 = Self.percentile(sortedArray, percentile: 0.99)
+		p99_9 = Self.percentile(sortedArray, percentile: 0.999)
 	}
-	var desc: String{
-		return "avg=\(average) stdDev=\(stdDev) median=\(median) min=\(min) max=\(max)"
+	static func percentile(_ sortedArray: [UInt64], percentile: Double) -> UInt64 {
+		let index = Int(ceil(Double(sortedArray.count) * percentile)) - 1
+		return sortedArray[index]
+	}
+	
+	var desc: String {
+		return "avg=\(average) stdDev=\(stdDev) median=\(median) p95=\(p95) p99=\(p99)"
 	}
 }
+

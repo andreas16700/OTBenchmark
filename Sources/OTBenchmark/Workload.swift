@@ -85,7 +85,7 @@ struct Benchmark: AsyncParsableCommand{
 		guard let writer = CSVWriter(name: name) else {fatalError("Error creating/opening file to write benchmark results to!")}
 		let names = runnerTypes.map(\.rawValue)
 		let generalNames = ["Models Count"] + names.map{"seconds(\($0))"} + names.map{"attoseconds(\($0))"} + names.map{"successes(\($0))"} + names.map{"fails(\($0))"}
-		 let latencyNames =  names.map{"latMedian(\($0))"} + names.map{"latAvg(\($0))"} + names.map{"latStdDev(\($0))"} + names.map{"latMin(\($0))"} + names.map{"latMax(\($0))"}
+		let latencyNames =  names.map{"latMedian(\($0))"} + names.map{"latAvg(\($0))"} + names.map{"latStdDev(\($0))"} + names.map{"latP95(\($0))"} + names.map{"latP99(\($0))"} + names.map{"latP99.9(\($0))"}
 		let headerValues = generalNames + latencyNames
 		print("Writing header",headerValues.joined(separator: ","))
 		writer.writeCSVLine(values: headerValues)
@@ -94,7 +94,7 @@ struct Benchmark: AsyncParsableCommand{
 	
 	func addResults(writer: CSVWriter, modelsCount: Int, times: [Duration], succ: [Int], fail: [Int], latencyStats: [Stats]){
 		let generalValues = ["\(modelsCount)"] + times.map({"\($0.components.seconds)"}) + times.map({"\($0.components.attoseconds)"}) + succ.map{String($0)} + fail.map{String($0)}
-		let latValues =  latencyStats.map{String($0.median)} + latencyStats.map{String($0.average)} + latencyStats.map{String($0.stdDev)} + latencyStats.map{String($0.min)} + latencyStats.map{String($0.max)}
+		let latValues =  latencyStats.map{String($0.median)} + latencyStats.map{String($0.average)} + latencyStats.map{String($0.stdDev)} + latencyStats.map{String($0.p95)} + latencyStats.map{String($0.p99)} + latencyStats.map{String($0.p99_9)}
 		let values = generalValues + latValues
 		writer.writeCSVLine(values: values)
 	}
