@@ -11,6 +11,7 @@ import ShopifyKit
 import OTModelSyncer
 import MockShopifyClient
 import MockPowersoftClient
+import RateLimitingCommunicator
 
 struct SyncResults{
 	let successes: Int
@@ -21,9 +22,82 @@ struct SyncResults{
 protocol WorkloadRunner{
 	init(psURL: URL, shURL: URL, msDelay: Int?)
 	static var name: String					{get}
+	static var shortIdentifier: String		{get}
+	var psURL: URL							{get}
+	var shURL: URL							{get}
 	var psClient: MockPsClient				{get}
 	var shClient: MockShClient				{get}
-	func runSync(sourceData: SourceData) async throws -> (Int,Int,[UInt64])
+	var rl: RLCommunicator?					{get}
+	func runSync(input: SyncModelInput)async->SyncModelResult
+}
+extension WorkloadRunner{
+	func runSync(sourceData source: SourceData) async throws -> (Int, Int, [UInt64]){
+		print("[I] Starting syncers... [\(Self.shortIdentifier)]")
+		let clientsInfo: ClientsInfo = .init(psURL: psURL, shURL: shURL)
+		return await withTaskGroup(of: ([String: Any]?, UInt64).self, returning: (Int, Int, [UInt64]).self){group in
+			for (modelCode, model) in source.psModelsByModelCode{
+				let refItem = model.first!
+				let stocks = source.psStocksByModelCode[modelCode] ?? []
+				
+				let product = source.shProdsByHandle[refItem.getShHandle()]
+				let shStocks = product?.appropriateStocks(from: source.shStocksByInvID)
+				let input = SyncModelInput(clientsInfo: clientsInfo, modelCode: modelCode, model: model, psStocks: stocks, product: product, shInv: shStocks)
+				group.addTask{
+					
+					if let rl{
+						let result = try! await rl.sendRequest{
+							let (duration, s) = await measureInNanos{
+								await runSync(input: input)
+							}
+							
+							if s.succ == nil{
+								print("[I] Failed for \(modelCode) [\(Self.shortIdentifier)]")
+								print(s.dictOutput)
+							}
+	//						saveQ.async {
+	//							try! s.save()
+	//						}
+							return (s.succ, duration)
+						}
+						return result
+					}else{
+						let (duration, s) = await measureInNanos{
+							await runSync(input: input)
+						}
+						
+						if s.succ == nil{
+							print("[I] Failed for \(modelCode) [\(Self.shortIdentifier)]")
+							print(s.dictOutput)
+						}
+//						saveQ.async {
+//							try! s.save()
+//						}
+						return (s.succ, duration)
+					}
+					
+				}
+			}
+			
+			var fails = 0
+			var successes = 0
+			var durations: [UInt64] = .init(repeating: 0, count: source.psModelsByModelCode.count)
+			var i=0
+			for await syncResult in group{
+				
+				if syncResult.0 == nil{
+					fails+=1
+				}else{
+					successes+=1
+				}
+				durations[i]=syncResult.1
+				i+=1
+			}
+			if i != source.psModelsByModelCode.count{
+				print("i should be \(source.psModelsByModelCode.count) but is \(i)!")
+			}
+			return (successes, fails, durations)
+		}
+	}
 }
 
 struct SourceData{

@@ -55,6 +55,10 @@ struct Benchmark: AsyncParsableCommand{
 	
 	@Argument(help: "URL of the SH (shopify) Server", transform: urlTransformer)
 	var shURL: URL
+	
+	
+	@Argument(help: "URL of the Monolithic Server", transform: urlTransformer)
+	var monoURL: URL
 		
 	@Option(name: .shortAndLong, help: "The type of runners to use.", completion: .default)
 	var runnerTypes: [RunnerType] = [.mono, .serverless]
@@ -65,8 +69,8 @@ struct Benchmark: AsyncParsableCommand{
 	@Flag(name: .short, help: "Only test that writing to a csv file works.")
 	var writeOnlyTestCSV = false
 	
-	@Flag(help: "Fetch source data for the syncs. By defaut, the source data is fetched, and for each model, the souce data is passed to the sync function. Source data is the data for a model that's currently available on the servers.")
-	var fetchSourceData = true
+//	@Flag(help: "Fetch source data for the syncs. By defaut, the source data is fetched, and for each model, the souce data is passed to the sync function. Source data is the data for a model that's currently available on the servers.")
+//	var fetchSourceData = true
 	
 	@Flag(help: "No delay. Send sync requests immediately")
 	var noDelay: Bool = false
@@ -124,7 +128,7 @@ struct Benchmark: AsyncParsableCommand{
 		}
 		guard increments>0 else {fatalError("Increments must be a positive integer! (not \(increments)")}
 		print("Will benchmark generating from \(minModelCount) models up to \(totalModelCount) in increments of \(increments), using seed (\(xSeed),\(ySeed))")
-		let g = stride(from: minModelCount, to: totalModelCount, by: increments)
+		let g = stride(from: minModelCount, to: totalModelCount+1, by: increments)
 		var workload = Workload(totalModelCount: 0, xSeed: xSeed, ySeed: ySeed)
 		let runners = parseRunners()
 		var times: [Duration] = .init()
@@ -155,6 +159,7 @@ struct Benchmark: AsyncParsableCommand{
 		}
 	}
 	public func run() async throws {
+		MonoClient.monoURL = monoURL
 //		let o = MonolithicRunner(psURL: psURL, shURL: shURL)
 //		let modelCode = "model1"
 //		let source = await o.getSourceData()

@@ -5,23 +5,37 @@
 //  Created by Andreas Loizides on 23/03/2023.
 //
 
+import NIO
+import NIOHTTP1
+import NIOHTTP2
+import NIOSSL
 import Foundation
+import AsyncHTTPClient
+import NIOFoundationCompat
 import PowersoftKit
 import ShopifyKit
-import MockShopifyClient
 import MockPowersoftClient
+import MockShopifyClient
 import OTModelSyncer
 import RateLimitingCommunicator
 
 struct MonolithicRunner: WorkloadRunner{
+	static var shortIdentifier: String = "M"
+	
+	let psClient: MockPowersoftClient.MockPsClient
+	
+	let shClient: MockShopifyClient.MockShClient
+	
 	
 	static let name: String = "Monolithic"
-	var psClient: MockPsClient
-	var shClient: MockShClient
+	let psURL: URL
+	let shURL: URL
 	let rl: RLCommunicator?
 	init(psURL: URL, shURL: URL, msDelay: Int?) {
-		self.psClient = MockPsClient(baseURL: psURL)
-		self.shClient = MockShClient(baseURL: shURL)
+		self.psURL = psURL
+		self.shURL = shURL
+		self.psClient = .init(baseURL: psURL)
+		self.shClient = .init(baseURL: shURL)
 		if let msDelay{
 			self.rl = RLCommunicator(minDelay: .milliseconds(msDelay))
 		}else{
@@ -29,57 +43,19 @@ struct MonolithicRunner: WorkloadRunner{
 		}
 		
 	}
-	func runSync(sourceData source: SourceData) async throws -> (Int,Int,[UInt64]){
-		print("[I] Starting syncers... [M]")
-		let g = await withTaskGroup(of: (SingleModelSync?, UInt64).self, returning: (Int, Int, [UInt64]).self){group in
-			for (modelCode, model) in source.psModelsByModelCode{
-				let refItem = model.first!
-				let stocks = source.psStocksByModelCode[modelCode] ?? []
-				
-				let product = source.shProdsByHandle[refItem.getShHandle()]
-				let shStocks = product?.appropriateStocks(from: source.shStocksByInvID)
-				let shData = product == nil ? nil : (product!,shStocks!)
-				let syncer = SingleModelSyncer(modelCode: modelCode, ps: psClient, sh: shClient, psDataToUse: (model,stocks), shDataToUse: shData, saveMethod: nil)
-				group.addTask{
-					if let rl{
-						let result = try! await rl.sendRequest{
-							let (nanos, s) = await measureInNanos{
-								await syncer.sync(savePeriodically: false)
-							}
-							if s == nil{
-								print("[I] Failed for \(modelCode) [M]")
-							}
-							return (s,nanos)
-						}
-						return result
-					}else{
-						let (nanos, s) = await measureInNanos{
-							await syncer.sync(savePeriodically: false)
-						}
-						if s == nil{
-							print("[I] Failed for \(modelCode) [M]")
-						}
-						return (s,nanos)
-					}
-					
-				}
-			}
-			var fails = 0
-			var successes = 0
-			var durations: [UInt64] = .init(repeating: 0, count: source.psModelsByModelCode.count)
-			var i=0
-			for await syncResult in group{
-				if syncResult.0 == nil{
-					fails+=1
-				}else{
-					successes+=1
-				}
-				durations[i]=syncResult.1
-				i+=1
-			}
-			return (successes,fails,durations)
+	func runSync(input: SyncModelInput) async -> SyncModelResult {
+		let param = input
+		
+		
+		let (nanos, r) = await measureInNanos{
+			await MonoClient.sendRequest(withParameters: param)
 		}
-		return g
+		
+		let g = MonoClient.wasSuccessful(o: r)
+		
+		let success = g["error"] == nil
+		
+		return .init(input: input, dictOutput: r, succ: success ? g : nil, nanos: nanos)
 	}
 }
 //
@@ -95,3 +71,95 @@ struct MonolithicRunner: WorkloadRunner{
 		 \t/usr/local/go/src/bufio/bufio.go:474 +0x1d",
 		 "2023-05-04T12:39:51.45178178Z  stdout: github.com/apache/openwhisk-runtime-go/openwhisk.(*Executor)
  */
+class MonoClient{
+	static let encoder = JSONEncoder()
+	static let decoder = JSONDecoder()
+	static var monoURL: URL?
+	class func wasSuccessful(o: [String: Any])->[String: Any]{
+		
+		guard let _ = o["source"] as? [String: Any] else {
+			return ["error":"no source! Got: \(o)"]
+		}
+		
+		guard let _ = o["metadata"] as? [String: Any] else{
+			return ["error":"no metadata! Got: \(o)"]
+		}
+		return o
+	}
+	class func sendRequest<T: Codable, T2: Codable>(withParameters params : T?, expect: T2.Type) async -> ([String:Any], T2?){
+		let o = await sendRequest(withParameters: params)
+
+		guard let r = o["response"] as? [String: Any] else {
+			return (["error":"no response! Got: \(o)"],nil)
+		}
+		
+		guard let result = r["result"] as? [String: Any] else{
+			return (["error":"no result! Got: \(o)"], nil)
+		}
+		do{
+			let data = try JSONSerialization.data(withJSONObject: result)
+			let decoded = try Self.decoder.decode(T2.self, from: data)
+			return (o, decoded)
+		}catch{
+			let e = "Error decoding as \(T2.self)! Got \(error.localizedDescription). Result dict: \(result)"
+			print(e)
+			return (["error":e], nil)
+		}
+	}
+	class func sendRequest<T: Codable>(withParameters params : T?) async -> [String:Any] {
+		guard let params else{
+			return await sendRequest(params: nil)
+		}
+		do{
+			guard let o = try params.asJsonDict(encoder: Self.encoder)else{
+				return ["error":"can't parse as [String: Any]! (is a json object but not a dictionary!)"]
+			}
+			return await sendRequest(params: o)
+		}catch{
+			return ["error":"can't parse as [String: Any]! \(error.localizedDescription)"]
+		}
+	}
+	class func sendRequest(params: [String: Any]?)async->[String:Any]{
+		let url = Self.monoURL!.customAppendingPath2(path: "syncModel")
+
+		do {
+			var body: HTTPClient.Body? = nil
+			if let params{
+				let data = try JSONSerialization.data(withJSONObject: params)
+				body = .byteBuffer(.init(data: data))
+			}
+
+			
+			guard let data = try await Client.shared.sendRequest(url: url, method: .POST, body: body) else {
+				return ["error":"empty response!"]
+			}
+			do {
+				//let outputStr  = String(data: data, encoding: String.Encoding.utf8) as String!
+				//print(outputStr)
+				let respJson = try JSONSerialization.jsonObject(with: data)
+				if respJson is [String:Any] {
+					return respJson as! [String:Any]
+				} else {
+					return ["error":" response from server is not a dictionary"]
+				}
+			} catch {
+				if let str = String(data: data, encoding: .utf8){
+					print("String response: ",str)
+				}
+				return ["error":"Error creating json from response: \(error)"]
+			}
+		} catch {
+			return ["error":"Got error creating params body: \(error)"]
+		}
+	}
+}
+extension URL{
+	func customAppendingPath2(path: String)->Self{
+		let u: URL = .init(string: path)!
+		var s = self
+		for p in u.pathComponents{
+			s = s.appendingPathComponent(p)
+		}
+		return s
+	}
+}
